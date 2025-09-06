@@ -6,6 +6,7 @@ public class CardView : MonoBehaviour
     public Image cardImage; // drag your CardSprite here in prefab
 
     private CardDefinitionSO data;
+    public bool IsLocked { get; private set; }
 
     public void SetCard(CardDefinitionSO card)
     {
