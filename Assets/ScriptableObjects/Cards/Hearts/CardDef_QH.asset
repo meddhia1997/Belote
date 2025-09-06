@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42ac4bca79a1b5047a5b79cc4aa4daa2, type: 3}
+  m_Name: CardDef_QH
+  m_EditorClassIdentifier: Assembly-CSharp::CardDefinitionSO
+  DisplayName: Queen of Hearts
+  ShortName: QH
+  Rank: Q
+  Suit: Hearts
+  PointsAtTrump: 3
+  PointsOffTrump: 3
+  OrderAtTrump: 3
+  OrderOffTrump: 5
+  CardSprite: {fileID: 4888415834392605112, guid: e454e03015cc7ee40a1887d675174d21, type: 3}
+  AddressableKey: 

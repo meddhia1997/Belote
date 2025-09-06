@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42ac4bca79a1b5047a5b79cc4aa4daa2, type: 3}
+  m_Name: CardDef_KH
+  m_EditorClassIdentifier: Assembly-CSharp::CardDefinitionSO
+  DisplayName: King of Hearts
+  ShortName: KH
+  Rank: K
+  Suit: Hearts
+  PointsAtTrump: 4
+  PointsOffTrump: 4
+  OrderAtTrump: 4
+  OrderOffTrump: 6
+  CardSprite: {fileID: -2772436440701751246, guid: 43e2bc7e21a8dc244b2941c0f5552a13, type: 3}
+  AddressableKey: 

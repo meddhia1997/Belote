@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42ac4bca79a1b5047a5b79cc4aa4daa2, type: 3}
+  m_Name: CardDef_10C
+  m_EditorClassIdentifier: Assembly-CSharp::CardDefinitionSO
+  DisplayName: 10 of Clubs
+  ShortName: 10C
+  Rank: 10
+  Suit: Clubs
+  PointsAtTrump: 10
+  PointsOffTrump: 10
+  OrderAtTrump: 5
+  OrderOffTrump: 7
+  CardSprite: {fileID: -1150891839665890436, guid: f3ec00c6ebba03a42a1ab9a63374d0d4, type: 3}
+  AddressableKey: 
