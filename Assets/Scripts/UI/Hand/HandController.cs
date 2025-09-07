@@ -2,165 +2,163 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Controls the local player's hand (fan layout, tap-to-select, tap-to-play).
+/// All animations are delegated to UIAnimationService (swappable later).
+/// </summary>
 public class HandController : MonoBehaviour
 {
-    [Header("Setup")]
-    public RectTransform handAnchor;           // HandAnchor_South
-    public RectTransform trickArea;            // TrickArea
-    public HandLayoutSettingsSO settings;
-    public CardView cardViewPrefab;            // assign your CardView.prefab
+    [Header("Scene Refs")]
+    [Tooltip("Bottom-center parent for the hand (this object or a child).")]
+    public RectTransform handAnchor;               // HandAnchor_South
+    [Tooltip("Center area where played cards should move to.")]
+    public RectTransform trickArea;                // TrickArea
 
+    [Header("Layout Settings")]
+    public HandLayoutSettingsSO settings;          // arc, radius, etc.
+
+    [Header("Animation (Service + Settings)")]
+    public UIAnimationService animService;         // component in scene
+    public CardAnimSettingsSO animSettings;        // timings + ease curve
+
+    [Header("Prefabs")]
+    public CardView cardViewPrefab;                // your CardView.prefab
+
+    // Runtime
     private readonly List<CardView> _cards = new();
     private CardView _selected;
 
-    #region Fan Layout
+    // ------------- FAN LAYOUT -------------
+    /// <summary>Repositions hand cards in an arc/fan.</summary>
     public void LayoutFan()
     {
         int n = _cards.Count;
-        if (n == 0) return;
+        if (n == 0 || handAnchor == null) return;
 
-        float arc = settings.arcDegrees;
+        float arc = settings != null ? settings.arcDegrees : 90f;
         float start = -arc * 0.5f;
         float step = (n > 1) ? arc / (n - 1) : 0f;
+        float radius = settings != null ? settings.radius : 220f;
+        float yBias = settings != null ? settings.overlapLift : 0f;
+        bool rotate = settings == null || settings.rotateCards;
 
         for (int i = 0; i < n; i++)
         {
             var cv = _cards[i];
+            if (!cv) continue;
+
             var rt = (RectTransform)cv.transform;
 
             float angDeg = start + i * step;
-            // place on circle; 0° = to the right, so rotate by +90 to make 0° up:
+            // 0° up: angle +90 to convert to UI canvas "up"
             float theta = Mathf.Deg2Rad * (angDeg + 90f);
 
             Vector2 pos = new Vector2(
-                settings.radius * Mathf.Cos(theta),
-                settings.radius * Mathf.Sin(theta) + settings.overlapLift
+                radius * Mathf.Cos(theta),
+                radius * Mathf.Sin(theta) + yBias
             );
 
+            // Parent (safe) and place
             rt.SetParent(handAnchor, false);
             rt.localScale = Vector3.one;
-            rt.localRotation = settings.rotateCards ? Quaternion.Euler(0, 0, angDeg) : Quaternion.identity;
+            rt.localRotation = rotate ? Quaternion.Euler(0, 0, angDeg) : Quaternion.identity;
             rt.anchoredPosition = pos;
+
+            // reset interactable by default
+            cv.SetInteractable(true);
         }
     }
-    #endregion
 
-    #region Select / Deselect
+    // ------------- INPUT: TAP -------------
+    /// <summary>Called by CardClickRelay on the CardView.</summary>
     public void OnCardTapped(CardView card)
     {
+        if (card == null) return;
+
+        // Second tap on same card => confirm/play
         if (_selected == card)
         {
-            // second tap: play
             StartCoroutine(PlayCardRoutine(card));
             return;
         }
 
-        // change selection
+        // Change selection
         if (_selected != null) Deselect(_selected);
         Select(card);
     }
 
-    void Select(CardView card)
+    private void Select(CardView card)
     {
         _selected = card;
         var rt = (RectTransform)card.transform;
-        rt.SetAsLastSibling(); // bring on top visually
-
-        StopAllCoroutines();
-        StartCoroutine(TweenSelect(rt, up:true));
+        rt.SetAsLastSibling(); // render on top
+        StartCoroutine(animService.SelectUp(rt, animSettings));
     }
 
-    void Deselect(CardView card)
+    private void Deselect(CardView card)
     {
         var rt = (RectTransform)card.transform;
-        StartCoroutine(TweenSelect(rt, up:false));
+        StartCoroutine(animService.SelectDown(rt, animSettings));
         _selected = null;
     }
 
-    IEnumerator TweenSelect(RectTransform rt, bool up)
+    // ------------- PLAY FLOW -------------
+    private IEnumerator PlayCardRoutine(CardView card)
     {
-        Vector3 startScale = rt.localScale;
-        Vector3 targetScale = up ? Vector3.one * settings.selectScale : Vector3.one;
-
-        Vector2 startPos = rt.anchoredPosition;
-        Vector2 targetPos = startPos + new Vector2(0, up ? settings.selectLift : -settings.selectLift);
-
-        float t = 0f;
-        float d = settings.selectTime;
-        while (t < d)
-        {
-            t += Time.unscaledDeltaTime;
-            float a = Mathf.SmoothStep(0,1,t/d);
-            rt.localScale = Vector3.Lerp(startScale, targetScale, a);
-            rt.anchoredPosition = Vector2.Lerp(startPos, targetPos, a);
-            yield return null;
-        }
-        rt.localScale = targetScale;
-        rt.anchoredPosition = targetPos;
-    }
-    #endregion
-
-    #region Play (move to trick, remove, relayout)
-    IEnumerator PlayCardRoutine(CardView card)
-    {
-        // lock input
+        // lock clicks on the played card immediately
         card.SetInteractable(false);
 
         var rt = (RectTransform)card.transform;
 
-        // reparent to top canvas to avoid being affected by hand rotation
-        var canvas = handAnchor.GetComponentInParent<Canvas>().transform as RectTransform;
-        Vector3 world = rt.position;
-        rt.SetParent(canvas, true);
-        rt.position = world;
+        // Reparent to top-level canvas while keeping screen position (so layout/rotation won't fight)
+        var canvas = handAnchor.GetComponentInParent<Canvas>()?.transform as RectTransform;
+        if (canvas != null)
+            animService.ReparentToCanvasKeepScreenPos(rt, canvas);
 
-        // animate to trick center (in canvas space)
-        Vector2 start = ((RectTransform)rt).anchoredPosition;
-        Vector2 target = trickArea.anchoredPosition;
+        // Move to trick center (and optionally straighten rotation)
+        yield return StartCoroutine(animService.MoveTo(rt, trickArea.anchoredPosition, animSettings));
 
-        float t = 0f, d = settings.playTime;
-        while (t < d)
-        {
-            t += Time.unscaledDeltaTime;
-            float a = Mathf.SmoothStep(0,1,t/d);
-            ((RectTransform)rt).anchoredPosition = Vector2.Lerp(start, target, a);
-            // optional: straighten rotation gradually
-            rt.localRotation = Quaternion.Slerp(rt.localRotation, Quaternion.identity, a);
-            yield return null;
-        }
-        ((RectTransform)rt).anchoredPosition = target;
-        rt.localRotation = Quaternion.identity;
+        // reinforce non-interactability on table
+        card.SetInteractable(false);
 
-        // remove from hand list
+        // Remove from hand list
         _cards.Remove(card);
 
-        // optionally keep the played card in TrickArea (reparent)
+        // Keep the played card visible at the trick (reparent logically to TrickArea)
         rt.SetParent(trickArea, false);
+        rt.localRotation = Quaternion.identity; // ensure straight at table
 
-        // clear selection & relayout
+        // Clear selection + re-layout remaining cards
         _selected = null;
         LayoutFan();
 
-        // TODO: notify game flow to advance turn (offline AI next)
+        // TODO: notify turn controller / game flow to advance.
     }
-    #endregion
 
-    #region API for Bootstrap / Dealing
+    // ------------- BOOTSTRAP API -------------
     public void ClearHand()
     {
-        foreach (var cv in _cards) if (cv) Destroy(cv.gameObject);
+        for (int i = 0; i < _cards.Count; i++)
+        {
+            if (_cards[i]) Destroy(_cards[i].gameObject);
+        }
         _cards.Clear();
         _selected = null;
     }
 
     public void AddCard(CardView cv)
     {
-        // add click handler
-        var click = cv.gameObject.AddComponent<CardClickRelay>();
-        click.controller = this;
-        click.card = cv;
+        if (!cv) return;
+
+        // attach click relay (tap handling)
+        var relay = cv.gameObject.GetComponent<CardClickRelay>();
+        if (!relay) relay = cv.gameObject.AddComponent<CardClickRelay>();
+        relay.controller = this;
+        relay.card = cv;
 
         _cards.Add(cv);
     }
-    #endregion
+
+    // Optional utility if you need current cards
+    public IReadOnlyList<CardView> GetCards() => _cards;
 }
