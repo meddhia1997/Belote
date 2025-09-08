@@ -18,6 +18,7 @@ public class CardDefinitionSO : ScriptableObject
     public int OrderOffTrump;
 
     [Header("Visuals")]
-    public Sprite CardSprite;              // reference via Addressable later
-    public string AddressableKey;          // alternative for dynamic loading
+    public Sprite CardSprite;        // face
+    public Sprite CardBackSprite;    // ✅ shared back (assign same sprite to all)
+    public string AddressableKey;    
 }

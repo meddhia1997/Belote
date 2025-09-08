@@ -1,164 +1,94 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Controls the local player's hand (fan layout, tap-to-select, tap-to-play).
-/// All animations are delegated to UIAnimationService (swappable later).
+/// Seat hand UI: owns card list, layout, and play-to-trick animation.
+/// NO input here. Input is handled by LocalHandInput on the local seat only.
+/// Raises OnCardAdded so LocalHandInput can auto-hook relays for new cards.
 /// </summary>
-public class HandController : MonoBehaviour
+public class HandController : MonoBehaviour, IHandView
 {
     [Header("Scene Refs")]
-    [Tooltip("Bottom-center parent for the hand (this object or a child).")]
-    public RectTransform handAnchor;               // HandAnchor_South
-    [Tooltip("Center area where played cards should move to.")]
-    public RectTransform trickArea;                // TrickArea
+    public RectTransform handAnchor;    // anchor for this hand
+    public RectTransform trickArea;     // center trick area
 
-    [Header("Layout Settings")]
-    public HandLayoutSettingsSO settings;          // arc, radius, etc.
+    [Header("Layout")]
+    public HandLayoutSettingsSO settings;
+    public UIHandFanLayoutService layoutService;   // any IHandLayoutService impl
 
-    [Header("Animation (Service + Settings)")]
-    public UIAnimationService animService;         // component in scene
-    public CardAnimSettingsSO animSettings;        // timings + ease curve
+    [Header("Animation")]
+    public UIAnimationService animService;
+    public CardAnimSettingsSO animSettings;
 
     [Header("Prefabs")]
-    public CardView cardViewPrefab;                // your CardView.prefab
+    public CardView cardViewPrefab;
 
     // Runtime
     private readonly List<CardView> _cards = new();
-    private CardView _selected;
 
-    // ------------- FAN LAYOUT -------------
-    /// <summary>Repositions hand cards in an arc/fan.</summary>
-    public void LayoutFan()
-    {
-        int n = _cards.Count;
-        if (n == 0 || handAnchor == null) return;
+    // Events
+    public event Action<CardView> OnCardAdded;   // <-- notifies when a card is added to this hand
 
-        float arc = settings != null ? settings.arcDegrees : 90f;
-        float start = -arc * 0.5f;
-        float step = (n > 1) ? arc / (n - 1) : 0f;
-        float radius = settings != null ? settings.radius : 220f;
-        float yBias = settings != null ? settings.overlapLift : 0f;
-        bool rotate = settings == null || settings.rotateCards;
+    // IHandView
+    public RectTransform HandAnchor => handAnchor;
 
-        for (int i = 0; i < n; i++)
-        {
-            var cv = _cards[i];
-            if (!cv) continue;
-
-            var rt = (RectTransform)cv.transform;
-
-            float angDeg = start + i * step;
-            // 0° up: angle +90 to convert to UI canvas "up"
-            float theta = Mathf.Deg2Rad * (angDeg + 90f);
-
-            Vector2 pos = new Vector2(
-                radius * Mathf.Cos(theta),
-                radius * Mathf.Sin(theta) + yBias
-            );
-
-            // Parent (safe) and place
-            rt.SetParent(handAnchor, false);
-            rt.localScale = Vector3.one;
-            rt.localRotation = rotate ? Quaternion.Euler(0, 0, angDeg) : Quaternion.identity;
-            rt.anchoredPosition = pos;
-
-            // reset interactable by default
-            cv.SetInteractable(true);
-        }
-    }
-
-    // ------------- INPUT: TAP -------------
-    /// <summary>Called by CardClickRelay on the CardView.</summary>
-    public void OnCardTapped(CardView card)
-    {
-        if (card == null) return;
-
-        // Second tap on same card => confirm/play
-        if (_selected == card)
-        {
-            StartCoroutine(PlayCardRoutine(card));
-            return;
-        }
-
-        // Change selection
-        if (_selected != null) Deselect(_selected);
-        Select(card);
-    }
-
-    private void Select(CardView card)
-    {
-        _selected = card;
-        var rt = (RectTransform)card.transform;
-        rt.SetAsLastSibling(); // render on top
-        StartCoroutine(animService.SelectUp(rt, animSettings));
-    }
-
-    private void Deselect(CardView card)
-    {
-        var rt = (RectTransform)card.transform;
-        StartCoroutine(animService.SelectDown(rt, animSettings));
-        _selected = null;
-    }
-
-    // ------------- PLAY FLOW -------------
-    private IEnumerator PlayCardRoutine(CardView card)
-    {
-        // lock clicks on the played card immediately
-        card.SetInteractable(false);
-
-        var rt = (RectTransform)card.transform;
-
-        // Reparent to top-level canvas while keeping screen position (so layout/rotation won't fight)
-        var canvas = handAnchor.GetComponentInParent<Canvas>()?.transform as RectTransform;
-        if (canvas != null)
-            animService.ReparentToCanvasKeepScreenPos(rt, canvas);
-
-        // Move to trick center (and optionally straighten rotation)
-        yield return StartCoroutine(animService.MoveTo(rt, trickArea.anchoredPosition, animSettings));
-
-        // reinforce non-interactability on table
-        card.SetInteractable(false);
-
-        // Remove from hand list
-        _cards.Remove(card);
-
-        // Keep the played card visible at the trick (reparent logically to TrickArea)
-        rt.SetParent(trickArea, false);
-        rt.localRotation = Quaternion.identity; // ensure straight at table
-
-        // Clear selection + re-layout remaining cards
-        _selected = null;
-        LayoutFan();
-
-        // TODO: notify turn controller / game flow to advance.
-    }
-
-    // ------------- BOOTSTRAP API -------------
-    public void ClearHand()
+    public void SetInteractable(bool interactable)
     {
         for (int i = 0; i < _cards.Count; i++)
+            if (_cards[i]) _cards[i].SetInteractable(interactable);
+    }
+
+    // -- Layout (delegated) --
+    public void LayoutFan()
+    {
+        if (!layoutService)
         {
-            if (_cards[i]) Destroy(_cards[i].gameObject);
+            Debug.LogWarning("[HandController] No layoutService assigned.");
+            return;
         }
+        layoutService.Layout(_cards, handAnchor, settings);
+    }
+
+    // -- Play animation (called by LocalHandInput / AI / Net) --
+    public IEnumerator PlayCardToTrick(CardView card)
+    {
+        if (!card) yield break;
+
+        card.SetInteractable(false);
+        var rt = (RectTransform)card.transform;
+
+        var canvas = handAnchor.GetComponentInParent<Canvas>()?.transform as RectTransform;
+        if (canvas && animService)
+            animService.ReparentToCanvasKeepScreenPos(rt, canvas);
+
+        if (animService && animSettings)
+            yield return animService.MoveTo(rt, trickArea.anchoredPosition, animSettings);
+
+        _cards.Remove(card);
+        rt.SetParent(trickArea, false);
+        rt.localRotation = Quaternion.identity;
+
+        LayoutFan();
+    }
+
+    // -- API for dealing/flow --
+    public void ClearHand()
+    {
+        foreach (var c in _cards) if (c) Destroy(c.gameObject);
         _cards.Clear();
-        _selected = null;
     }
 
     public void AddCard(CardView cv)
     {
         if (!cv) return;
-
-        // attach click relay (tap handling)
-        var relay = cv.gameObject.GetComponent<CardClickRelay>();
-        if (!relay) relay = cv.gameObject.AddComponent<CardClickRelay>();
-        relay.controller = this;
-        relay.card = cv;
-
+        // Do NOT attach click relays here; LocalHandInput will do it for local seat only
         _cards.Add(cv);
+
+        // Notify listeners (LocalHandInput) so it can attach relays immediately
+        OnCardAdded?.Invoke(cv);
     }
 
-    // Optional utility if you need current cards
     public IReadOnlyList<CardView> GetCards() => _cards;
 }

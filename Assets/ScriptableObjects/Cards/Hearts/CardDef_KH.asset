@@ -20,5 +20,6 @@ MonoBehaviour:
   PointsOffTrump: 4
   OrderAtTrump: 4
   OrderOffTrump: 6
-  CardSprite: {fileID: -2772436440701751246, guid: 43e2bc7e21a8dc244b2941c0f5552a13, type: 3}
+  CardSprite: {fileID: -111649486326267610, guid: eb806b16b72cb0849aa2a8b26efdbcde, type: 3}
+  CardBackSprite: {fileID: 3529057211609450888, guid: 12cc1cf316d2da04895e5d8e5f6c9d11, type: 3}
   AddressableKey: 
