@@ -219,7 +219,6 @@ RectTransform:
   - {fileID: 1622244192}
   - {fileID: 758716463}
   - {fileID: 617193940}
-  - {fileID: 630791582}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -263,7 +262,7 @@ MonoBehaviour:
     Hand: {fileID: 859518250}
   - Id: 2
     Team: 0
-    IsLocal: 1
+    IsLocal: 0
     Hand: {fileID: 758716464}
   - Id: 1
     Team: 1
@@ -341,6 +340,7 @@ MonoBehaviour:
   handAnchor: {fileID: 524830817}
   trickArea: {fileID: 617193940}
   settings: {fileID: 11400000, guid: cc60ec233a16b5f40a7140d523ba47b4, type: 2}
+  layoutService: {fileID: 1347970132}
   animService: {fileID: 2065513996}
   animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
   cardViewPrefab: {fileID: 3886028779862808703, guid: 4fb28e4b5e0c88545b9153ba130b47b2, type: 3}
@@ -457,50 +457,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 617193939}
   m_CullTransparentMesh: 1
---- !u!1 &630791581
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 630791582}
-  - component: {fileID: 630791583}
-  m_Layer: 5
-  m_Name: DeckView
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &630791582
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 630791581}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 43395278}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 43, y: 10}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &630791583
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 630791581}
-  m_CullTransparentMesh: 1
 --- !u!1 &758716462
 GameObject:
   m_ObjectHideFlags: 0
@@ -554,6 +510,7 @@ MonoBehaviour:
   handAnchor: {fileID: 758716463}
   trickArea: {fileID: 617193940}
   settings: {fileID: 11400000, guid: cc60ec233a16b5f40a7140d523ba47b4, type: 2}
+  layoutService: {fileID: 1347970132}
   animService: {fileID: 2065513996}
   animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
   cardViewPrefab: {fileID: 3886028779862808703, guid: 4fb28e4b5e0c88545b9153ba130b47b2, type: 3}
@@ -607,6 +564,7 @@ GameObject:
   - component: {fileID: 859518252}
   - component: {fileID: 859518251}
   - component: {fileID: 859518250}
+  - component: {fileID: 859518253}
   m_Layer: 5
   m_Name: HandAnchor_South
   m_TagString: Untagged
@@ -648,6 +606,7 @@ MonoBehaviour:
   handAnchor: {fileID: 859518249}
   trickArea: {fileID: 617193940}
   settings: {fileID: 11400000, guid: cc60ec233a16b5f40a7140d523ba47b4, type: 2}
+  layoutService: {fileID: 1347970132}
   animService: {fileID: 2065513996}
   animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
   cardViewPrefab: {fileID: 3886028779862808703, guid: 4fb28e4b5e0c88545b9153ba130b47b2, type: 3}
@@ -689,6 +648,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 859518248}
   m_CullTransparentMesh: 1
+--- !u!114 &859518253
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 859518248}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdeffa8516285bd479ef2c306ea4c4cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LocalHandInput
+  hand: {fileID: 859518250}
+  animService: {fileID: 2065513996}
+  animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
 --- !u!1 &941203634
 GameObject:
   m_ObjectHideFlags: 0
@@ -721,12 +695,12 @@ MonoBehaviour:
   deckManager: {fileID: 1112074648}
   seatRegistry: {fileID: 223226417}
   agentFactory: {fileID: 1740623241}
-  deckView: {fileID: 630791582}
+  canvasRoot: {fileID: 43395278}
   cardViewPrefab: {fileID: 3886028779862808703, guid: 4fb28e4b5e0c88545b9153ba130b47b2, type: 3}
-  animService: {fileID: 2065513996}
-  animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
-  interCardDelay: 0.04
-  packetPattern: 030000000200000003000000
+  uiAnimService: {fileID: 2065513996}
+  dealingAnimService: {fileID: 2065513998}
+  cardAnimSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
+  dealingFlowSettings: {fileID: 11400000, guid: 082be0d0144fb9b4ab0e4c802dc08c4c, type: 2}
 --- !u!4 &941203636
 Transform:
   m_ObjectHideFlags: 0
@@ -759,7 +733,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1012735218}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8fb482fc1d46b09438d52076ff57a7ec, type: 3}
   m_Name: 
@@ -831,6 +805,50 @@ MonoBehaviour:
   handSize: 8
   clearBeforeDeal: 1
   shuffleBeforeDeal: 1
+--- !u!1 &1347970131
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1347970133}
+  - component: {fileID: 1347970132}
+  m_Layer: 0
+  m_Name: LayoutServices
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1347970132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1347970131}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 707a640128c29884eb169b27e091d20c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIHandFanLayoutService
+--- !u!4 &1347970133
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1347970131}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 33.71115, y: 24.34167, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1451588046
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1009,6 +1027,7 @@ MonoBehaviour:
   handAnchor: {fileID: 1622244192}
   trickArea: {fileID: 617193940}
   settings: {fileID: 11400000, guid: cc60ec233a16b5f40a7140d523ba47b4, type: 2}
+  layoutService: {fileID: 1347970132}
   animService: {fileID: 2065513996}
   animSettings: {fileID: 11400000, guid: e752bdd66e4e9d049a54cdafde04cbee, type: 2}
   cardViewPrefab: {fileID: 3886028779862808703, guid: 4fb28e4b5e0c88545b9153ba130b47b2, type: 3}
@@ -1321,6 +1340,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2065513997}
   - component: {fileID: 2065513996}
+  - component: {fileID: 2065513998}
   m_Layer: 0
   m_Name: AnimationService
   m_TagString: Untagged
@@ -1355,6 +1375,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2065513998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2065513995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc404138540635641bde72fc22cb9503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIDealingAnimationService
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1367,3 +1399,4 @@ SceneRoots:
   - {fileID: 1740623242}
   - {fileID: 941203636}
   - {fileID: 223226418}
+  - {fileID: 1347970133}
