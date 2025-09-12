@@ -29,7 +29,7 @@ public class HandController : MonoBehaviour, IHandView
     private readonly List<CardView> _cards = new();
 
     // Events
-    public event Action<CardView> OnCardAdded;   // <-- notifies when a card is added to this hand
+    public event Action<CardView> OnCardAdded;   // notifies when a card is added to this hand
 
     // IHandView
     public RectTransform HandAnchor => handAnchor;
@@ -51,25 +51,34 @@ public class HandController : MonoBehaviour, IHandView
         layoutService.Layout(_cards, handAnchor, settings);
     }
 
-    // -- Play animation (called by LocalHandInput / AI / Net) --
+    // -- Play animation (called by TurnFlow after chooser confirms) --
     public IEnumerator PlayCardToTrick(CardView card)
     {
         if (!card) yield break;
 
+        // Always force face-up when a card is played to the trick.
+        card.ShowFace(true);
+
+        // lock input on this card
         card.SetInteractable(false);
+
         var rt = (RectTransform)card.transform;
 
+        // keep screen pos: move under top-level canvas to avoid layout conflicts during travel
         var canvas = handAnchor.GetComponentInParent<Canvas>()?.transform as RectTransform;
         if (canvas && animService)
             animService.ReparentToCanvasKeepScreenPos(rt, canvas);
 
+        // animate to trick center
         if (animService && animSettings)
             yield return animService.MoveTo(rt, trickArea.anchoredPosition, animSettings);
 
+        // detach from hand & place on table
         _cards.Remove(card);
         rt.SetParent(trickArea, false);
         rt.localRotation = Quaternion.identity;
 
+        // re-layout remaining hand
         LayoutFan();
     }
 

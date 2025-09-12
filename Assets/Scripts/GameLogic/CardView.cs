@@ -15,6 +15,7 @@ public class CardView : MonoBehaviour
     private CardDefinitionSO _data;
     private Sprite _faceSprite;
     private Sprite _backSprite;
+    private bool _isFaceUp;
 
     void Awake()
     {
@@ -29,7 +30,8 @@ public class CardView : MonoBehaviour
     {
         _data = data;
         _faceSprite = _data ? _data.CardSprite : null;
-        _backSprite = _data ? (_data.CardBackSprite ?? _data.CardSprite) : null;
+        // If CardBackSprite is not defined on the SO, we fallback to face sprite
+        _backSprite = _data ? (_data.CardBackSprite != null ? _data.CardBackSprite : _data.CardSprite) : null;
 
         if (!cardImage)
         {
@@ -40,14 +42,19 @@ public class CardView : MonoBehaviour
         if (_faceSprite == null)
             Debug.LogWarning("[CardView] CardDefinitionSO has no CardSprite.");
 
-        cardImage.sprite = _faceSprite; // default face-up
+        // default to face-up in hand (deal logic may call ShowFace(false) for opponents)
+        ShowFace(true);
     }
 
-    /// <summary>Flip using the single Image: faceUp = true shows face; false shows back.</summary>
+    /// <summary>Switch between face (true) or back (false).</summary>
     public void ShowFace(bool faceUp)
     {
+        _isFaceUp = faceUp;
         if (!cardImage) return;
-        cardImage.sprite = faceUp ? _faceSprite : (_backSprite ?? _faceSprite);
+        if (faceUp && _faceSprite != null)
+            cardImage.sprite = _faceSprite;
+        else
+            cardImage.sprite = _backSprite ?? _faceSprite;
     }
 
     /// <summary>Master switch for input & raycasts. When false, card is display-only.</summary>
@@ -55,6 +62,7 @@ public class CardView : MonoBehaviour
     {
         if (_cg) _cg.blocksRaycasts = interactable;
 
+        // also toggle raycast on any child graphics if you add badges/highlights later
         var graphics = GetComponentsInChildren<Graphic>(true);
         foreach (var g in graphics) g.raycastTarget = interactable;
 
@@ -63,4 +71,6 @@ public class CardView : MonoBehaviour
     }
 
     public CardDefinitionSO GetData() => _data;
+    public CardDefinitionSO GetCardDefinition() => _data;
+    public bool IsFaceUp => _isFaceUp;
 }

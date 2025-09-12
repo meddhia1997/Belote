@@ -16,6 +16,9 @@ public class SeatRegistry : MonoBehaviour
     public List<SeatEntry> Seats = new();
 
     private readonly Dictionary<SeatId, SeatContext> _ctx = new();
+    private bool _built;
+
+    public bool IsBuilt => _built;
 
     public void Build(IAgentFactory agentFactory)
     {
@@ -32,6 +35,8 @@ public class SeatRegistry : MonoBehaviour
             c.Agent = agentFactory.Create(c);
             _ctx[c.Id] = c;
         }
+                _built = true;
+
     }
 
     public SeatContext Get(SeatId id) => _ctx[id];
@@ -46,4 +51,10 @@ public class SeatRegistry : MonoBehaviour
         for (int i = 0; i < 4; i++) { list.Add(cur); cur = Next(cur); }
         return list;
     }
+
+
+        // ...
+
+
+
 }

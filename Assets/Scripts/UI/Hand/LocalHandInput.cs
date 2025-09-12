@@ -1,41 +1,49 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Local player input for a single seat. Handles select and double tap to play.
-/// Attach ONLY to the local seat's HandController GameObject.
+/// Local player's input: selection and confirm. Does NOT move cards itself.
+/// It emits OnConfirmPlay(cardDef). TurnFlowController performs the animation.
 /// </summary>
 public class LocalHandInput : MonoBehaviour
 {
-    [Header("Refs")]
-    public HandController hand;              // assign local seat hand
-    public UIAnimationService animService;   // reuse same service
+    public HandController hand;
+    public UIAnimationService animService;
     public CardAnimSettingsSO animSettings;
 
+    public event Action<CardDefinitionSO> OnConfirmPlay;
+
     private CardView _selected;
+    private HashSet<CardDefinitionSO> _legal; // null = unrestricted
 
     void Awake()
     {
         if (!hand) hand = GetComponent<HandController>();
+        HookExistingCards();
     }
 
-    void OnEnable()
+    public void SetLegal(HashSet<CardDefinitionSO> legal)
     {
-        if (hand != null)
+        _legal = legal;
+        // Optional: add highlight on allowed cards
+        UpdateHighlights();
+    }
+
+    private void UpdateHighlights()
+    {
+        var cards = hand.GetCards();
+        for (int i = 0; i < cards.Count; i++)
         {
-            hand.OnCardAdded += EnsureRelay;   // auto-hook new cards as they're dealt
-            hand.SetInteractable(true);        // make sure local seat is clickable
-            HookExistingCards();               // and hook any already-present cards
+            var cv = cards[i];
+            if (!cv) continue;
+            bool allowed = (_legal == null) || _legal.Contains(cv.GetCardDefinition());
+            cv.SetInteractable(allowed && hand == hand); // enable raycast only if allowed
+            // optional: cv.SetHighlight(allowed);
         }
     }
 
-    void OnDisable()
-    {
-        if (hand != null)
-            hand.OnCardAdded -= EnsureRelay;
-    }
-
-    /// <summary>Hook click relays for all existing cards (call after dealing too).</summary>
     public void HookExistingCards()
     {
         foreach (var cv in hand.GetCards())
@@ -47,9 +55,16 @@ public class LocalHandInput : MonoBehaviour
     {
         if (!card) return;
 
+        // block illegal
+        if (_legal != null && !_legal.Contains(card.GetCardDefinition()))
+            return;
+
         if (_selected == card)
         {
-            StartCoroutine(PlaySelected(card));
+            // confirm
+            OnConfirmPlay?.Invoke(card.GetCardDefinition());
+            // don't animate here; TurnFlow handles it
+            _selected = null;
             return;
         }
 
@@ -74,21 +89,11 @@ public class LocalHandInput : MonoBehaviour
         _selected = null;
     }
 
-    private IEnumerator PlaySelected(CardView card)
-    {
-        // Delegates to HandController (animation + removal + relayout)
-        yield return StartCoroutine(hand.PlayCardToTrick(card));
-        _selected = null;
-
-        // TODO: TurnController.NotifyLocalPlayed(card);
-    }
-
     private void EnsureRelay(CardView cv)
     {
-        if (!cv) return;
         var relay = cv.GetComponent<CardClickRelay>();
         if (!relay) relay = cv.gameObject.AddComponent<CardClickRelay>();
-        relay.input = this;   // route clicks to LocalHandInput
+        relay.input = this;
         relay.card  = cv;
     }
 }
