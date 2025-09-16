@@ -1,21 +1,48 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
+/// <summary>
+/// Runtime rules context for a round. Holds trump, current trick, seat state, etc.
+/// Designed to be passed into rule policies (legal moves, trick resolver, scoring).
+/// </summary>
 public class RulesContext
 {
-    public IRulesProfile Profile { get; }
-    public Suit Trump => Profile.TrumpPolicy.CurrentTrump;
+    public RulesProfileSO Profile { get; private set; }
 
-    public Trick CurrentTrick;                         // active trick (may be partial)
-    public SeatId CurrentSeat;                         // seat to act (optional)
-    public int TrickIndex;                             // 0..7 (optional)
+    /// <summary>
+    /// Current trump suit for this round.
+    /// Private setter ensures only SetTrump/ResetTrump can modify.
+    /// </summary>
+    public Suit Trump { get; private set; } = Suit.None;
 
-    // helpers injected at bootstrap:
-    public Func<string, Suit> ParseSuit;               // e.g., SuitUtils.Parse
-    public Func<SeatId, IReadOnlyList<CardView>> GetHandViews; // optional
+    public Trick CurrentTrick { get; set; }
+    public SeatId CurrentSeat { get; set; }
+    public int TrickIndex { get; set; }
 
-    public RulesContext(IRulesProfile profile)
+    /// <summary>
+    /// Function to parse suit string (injected by TurnFlow/scene).
+    /// </summary>
+    public Func<string, Suit> ParseSuit { get; set; }
+
+    public RulesContext(RulesProfileSO profile)
     {
         Profile = profile;
+    }
+
+    /// <summary>
+    /// Explicitly set the trump suit for this round.
+    /// </summary>
+    public void SetTrump(Suit trump)
+    {
+        Trump = trump;
+    }
+
+    /// <summary>
+    /// Reset trump back to "None" — useful at the beginning of a new round.
+    /// </summary>
+    public void ResetTrump()
+    {
+        Trump = Suit.None;
     }
 }

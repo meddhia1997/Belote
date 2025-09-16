@@ -41,6 +41,24 @@ public class TrickPileController : MonoBehaviour
 
     public List<CardView> GetPile(SeatId seat) => piles[seat];
 
+    /// <summary>
+    /// Call this at the start of a new round to wipe piles clean.
+    /// </summary>
+    public void ResetPiles()
+    {
+        foreach (var kvp in piles)
+        {
+            var list = kvp.Value;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] != null)
+                    Destroy(list[i].gameObject);
+            }
+            list.Clear();
+        }
+        Debug.Log("[TrickPile] Piles cleared for new round.");
+    }
+
     public IEnumerator CollectTrick(SeatId winner)
     {
         if (!trickArea) { Debug.LogError("[TrickPile] trickArea not assigned."); yield break; }
@@ -75,9 +93,9 @@ public class TrickPileController : MonoBehaviour
             if (animService && canvasRT)
                 animService.ReparentToCanvasKeepScreenPos(rt, canvasRT);
             else
-                rt.SetParent(canvasRT, true); // keep world pos
+                rt.SetParent(canvasRT, true);
 
-            // Animate in canvas space to the pile anchor position + stack offset
+            // Animate to pile stack
             Vector2 stackOffset = pileStep * piles[winner].Count;
             Vector2 targetAnchoredCanvas = pileTargetCanvasPos + stackOffset;
 
@@ -86,14 +104,12 @@ public class TrickPileController : MonoBehaviour
             else
                 rt.anchoredPosition = targetAnchoredCanvas;
 
-            // Now that the card is visually at the pile spot (in canvas space),
-            // parent it under the pile anchor and preserve the local offset so it
-            // stays where it is relative to the pile.
+            // Parent under pile anchor
             Vector2 localUnderPile = WorldToAnchored(pileAnchor, canvasRT.TransformPoint(targetAnchoredCanvas));
             rt.SetParent(pileAnchor, false);
-            rt.anchoredPosition = localUnderPile;     // keep exact spot under pile
-            rt.localRotation   = Quaternion.identity;
-            rt.localScale      = Vector3.one * pileScale;
+            rt.anchoredPosition = localUnderPile;
+            rt.localRotation = Quaternion.identity;
+            rt.localScale = Vector3.one * pileScale;
 
             piles[winner].Add(cv);
         }
@@ -116,9 +132,6 @@ public class TrickPileController : MonoBehaviour
         _ => null
     };
 
-    /// <summary>
-    /// Convert a world position into anchored coordinates of a target RectTransform.
-    /// </summary>
     static Vector2 WorldToAnchored(RectTransform targetSpace, Vector3 worldPos)
     {
         Vector3 local = targetSpace.InverseTransformPoint(worldPos);

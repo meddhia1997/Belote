@@ -1,10 +1,15 @@
 using System.Collections;
 using UnityEngine;
+using GameFlow.Bidding; // <-- pour BiddingPhaseController, Contract
 
 /// <summary>
 /// Spawns a runtime deck anchor and animates dealing packets to each seat.
-/// All cards are non-interactable during dealing. After the last packet,
-/// hands are re-laid out and (optionally) TurnFlowController is started.
+/// All cards are non-interactable during dealing. After the last packet:
+///  Priority routing:
+///   1) If biddingPhase is assigned        => run bidding, then continue upon OnBiddingFinished
+///   2) Else if trumpPhase and !autoStart  => run TrumpPhaseController and continue on OnTrumpDecided
+///   3) Else if autoStartRound             => start TurnFlow directly (trump may be None)
+///   4) Else                               => wait for external flow
 /// </summary>
 public class DealingController : MonoBehaviour
 {
@@ -22,31 +27,44 @@ public class DealingController : MonoBehaviour
     [Header("Visuals")]
     public CardView cardViewPrefab;
 
+    [Header("Trick Collection")]
+    public TrickPileController trickPiles; // optional; used to ResetPiles() at new round
+
     [Header("Animation Services")]
     public UIAnimationService uiAnimService;             // low-level (move/select)
     public UIDealingAnimationService dealingAnimService; // high-level (deck->hand)
-    public CardAnimSettingsSO cardAnimSettings;          // single-card timings
+    public CardAnimSettingsSO cardAnimSettings;          // per-card timings
     public DealingFlowSettingsSO dealingFlowSettings;    // rhythm, packetPattern, deck position
 
-    [Header("Round Autostart")]
-    [Tooltip("If true, call TurnFlowController after dealing completes.")]
-    public bool autoStartRound = true;
-    public TurnFlowController turnFlow;                  // optional; auto-find if not set
-    public RoundController roundController;              // optional; round init hook
-    public SeatId dealerForThisRound = SeatId.East;      // who dealt (leader = Next)
+    [Header("Round Start Strategy")]
+    [Tooltip("If true, TurnFlow starts directly after dealing (debug). If false and trumpPhase/biddingPhase are set, those will run first.")]
+    public bool autoStartRound = false;
+
+    [Tooltip("Optional: if set and autoStartRound=false, trump phase will run after dealing (only used if biddingPhase is null).")]
+    public TrumpPhaseController trumpPhase; // optional (event-driven)
+
+    [Tooltip("Optional: recommended. If set, Bidding runs after dealing and decides trump. Takes priority over TrumpPhaseController.")]
+    public BiddingPhaseController biddingPhase; // optional (event-driven)
+
+    public TurnFlowController turnFlow;        // optional; auto-found if null
+    public RoundController roundController;    // optional; round init hook
+    public SeatId dealerForThisRound = SeatId.East; // who dealt (leader = Next)
 
     // events
     public System.Action OnDealingStarted;
     public System.Action OnDealingCompleted;
 
     // runtime
-    RectTransform _deckAnchorRT;
-    Canvas _canvas;
+    private RectTransform _deckAnchorRT;
+    private Canvas _canvas;
+    private SeatId _lastDealerDealt;
+    private bool _waitingForBidding;
+    private bool _waitingForTrump;
 
     void Awake()
     {
         // Build registry/agents if needed
-        if (seatRegistry != null && agentFactory != null && !seatRegistry.IsBuilt)
+        if (seatRegistry != null && agentFactory != null)
             seatRegistry.Build(agentFactory);
 
         // Canvas
@@ -58,7 +76,7 @@ public class DealingController : MonoBehaviour
             return;
         }
 
-        // Runtime deck anchor
+        // Runtime deck anchor (single origin for all dealt cards)
         _deckAnchorRT = new GameObject("DeckAnchor_RT", typeof(RectTransform)).GetComponent<RectTransform>();
         _deckAnchorRT.SetParent(canvasRoot ? canvasRoot : _canvas.transform as RectTransform, false);
         _deckAnchorRT.pivot = _deckAnchorRT.anchorMin = _deckAnchorRT.anchorMax = new Vector2(0.5f, 0.5f);
@@ -70,9 +88,24 @@ public class DealingController : MonoBehaviour
         if (!turnFlow) turnFlow = FindObjectOfType<TurnFlowController>(includeInactive: true);
     }
 
+    void OnDisable()
+    {
+        // Defensive: unsubscribe if object is disabled mid-phase
+        if (biddingPhase != null)
+            biddingPhase.OnBiddingFinished -= HandleBiddingFinished;
+
+        if (trumpPhase != null)
+            trumpPhase.OnTrumpDecided -= HandleTrumpChosen;
+
+        _waitingForBidding = false;
+        _waitingForTrump = false;
+    }
+
     [ContextMenu("Deal New Round (pattern)")]
     public void DealNewRound()
     {
+        // Reset piles for new round if assigned
+        trickPiles?.ResetPiles();
         StartCoroutine(DealRoutine(dealerForThisRound));
     }
 
@@ -84,6 +117,7 @@ public class DealingController : MonoBehaviour
             yield break;
         }
 
+        _lastDealerDealt = dealer;
         OnDealingStarted?.Invoke();
 
         // Reset & shuffle deck
@@ -135,20 +169,48 @@ public class DealingController : MonoBehaviour
 
             // If LocalHandInput exists, (re)hook relays for new cards
             if (enable)
-            {
-                var input = s.Hand.GetComponent<LocalHandInput>();
-                if (input) input.HookExistingCards();
-            }
+                s.Hand.GetComponent<LocalHandInput>()?.HookExistingCards();
         }
 
         OnDealingCompleted?.Invoke();
 
-        // 5) Optionally start the round & notify RoundController
+        // 5) Round start routing (priority):
+        //  1) If biddingPhase is set => run Bidding and wait for contract
+        if (biddingPhase != null)
+        {
+            // Reset trump first
+            turnFlow?.ResetTrump();
+
+            // Subscribe once
+            _waitingForBidding = true;
+            biddingPhase.OnBiddingFinished += HandleBiddingFinished;
+
+            // Begin bidding (dealer info goes in to decide order)
+            biddingPhase.Begin(_lastDealerDealt);
+            yield break; // Wait for OnBiddingFinished
+        }
+
+        //  2) Else, if trumpPhase is set and autoStartRound == false => run the classic trump selection phase
+        if (trumpPhase != null && !autoStartRound)
+        {
+            turnFlow?.ResetTrump();
+
+            _waitingForTrump = true;
+            trumpPhase.OnTrumpDecided += HandleTrumpChosen;
+            trumpPhase.Begin(_lastDealerDealt);
+            yield break; // Wait for OnTrumpDecided
+        }
+
+        //  3) Else, auto-start (debug/no-trump)
         if (autoStartRound && turnFlow)
         {
-            roundController?.BeginNewRound(dealer);  // initialize round score state
-            turnFlow.StartRound(dealer);             // leader = Next(dealer)
+            roundController?.BeginNewRound(_lastDealerDealt);
+            turnFlow.StartRound(_lastDealerDealt);
             yield return StartCoroutine(turnFlow.PlayRound());
+        }
+        else
+        {
+            Debug.Log("[DealingController] Dealing finished. Waiting for external flow (no Bidding/TrumpPhase or autoStartRound=false).");
         }
     }
 
@@ -211,9 +273,53 @@ public class DealingController : MonoBehaviour
                 handRT.anchoredPosition = targetAnchored;
                 handRT.localRotation = targetRot;
             }
-
-            // (still non-interactable until whole dealing ends)
         }
+    }
+
+    // === Bidding callbacks ===
+    private void HandleBiddingFinished(Contract contract)
+    {
+        if (!_waitingForBidding) return;
+        _waitingForBidding = false;
+
+        // Unsubscribe immediately
+        if (biddingPhase != null)
+            biddingPhase.OnBiddingFinished -= HandleBiddingFinished;
+
+        if (turnFlow == null)
+        {
+            Debug.LogError("[DealingController] TurnFlow is null in HandleBiddingFinished.");
+            return;
+        }
+
+        // 1) Push trump to TurnFlow
+        turnFlow.SetTrump(contract.trump);
+
+        // 2) Start the round from the dealer (leader = Next(dealer))
+        roundController?.BeginNewRound(_lastDealerDealt);
+        turnFlow.StartRound(_lastDealerDealt);
+        StartCoroutine(turnFlow.PlayRound());
+    }
+
+    // === TrumpPhase callback ===
+    private void HandleTrumpChosen(Suit chosen)
+    {
+        if (!_waitingForTrump) return;
+        _waitingForTrump = false;
+
+        if (trumpPhase != null)
+            trumpPhase.OnTrumpDecided -= HandleTrumpChosen;
+
+        if (turnFlow == null)
+        {
+            Debug.LogError("[DealingController] TurnFlow is null in HandleTrumpChosen.");
+            return;
+        }
+
+        turnFlow.SetTrump(chosen);
+        roundController?.BeginNewRound(_lastDealerDealt);
+        turnFlow.StartRound(_lastDealerDealt);
+        StartCoroutine(turnFlow.PlayRound());
     }
 
     // Optional helper if you want to chain rounds: rotate dealer clockwise

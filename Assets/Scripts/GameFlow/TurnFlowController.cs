@@ -2,6 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Drives a round: 8 tricks, enforcing legal moves, collecting tricks,
+/// notifying RoundController, and exposing trump changes for HUD.
+/// </summary>
 public class TurnFlowController : MonoBehaviour
 {
     [Header("Core")]
@@ -17,6 +21,10 @@ public class TurnFlowController : MonoBehaviour
     // runtime
     private RulesContext _ctx;
 
+    // === Trump change event + getter (for HUD/UI) ===
+    public event System.Action<Suit> OnTrumpChanged;
+    public Suit CurrentTrump => _ctx != null ? _ctx.Trump : Suit.None;
+
     void Awake()
     {
         if (!ValidateSceneWiring("Awake")) return;
@@ -27,6 +35,7 @@ public class TurnFlowController : MonoBehaviour
         };
     }
 
+    /// <summary>Called by Dealing/Match just before PlayRound().</summary>
     public void StartRound(SeatId dealer)
     {
         if (!ValidateSceneWiring("StartRound")) return;
@@ -42,14 +51,14 @@ public class TurnFlowController : MonoBehaviour
         _ctx.CurrentSeat = leader;
         _ctx.TrickIndex  = 0;
 
-        // start scoring round
-        roundController?.BeginNewRound(dealer);
+        // round scorer reset is kicked by DealingController before this (BeginNewRound)
 
-        // Only local seat interactable
+        // Only local seat interactable initially
         foreach (var s in seatRegistry.All())
             s.Hand?.SetInteractable(s.IsLocal);
 
-        Debug.Log($"[TurnFlow] Round started. Dealer={dealer}, Leader={leader}");
+        if (_ctx.Trump == Suit.None)
+            Debug.LogWarning("[TurnFlow] Starting round with TRUMP=None. Set it before StartRound.");
     }
 
     public IEnumerator PlayRound()
@@ -62,7 +71,7 @@ public class TurnFlowController : MonoBehaviour
             _ctx.TrickIndex++;
             yield return new WaitForSeconds(config ? config.afterTrickDelay : 0.5f);
         }
-        // RoundController handles scoring finalization on 8th trick
+        // RoundController finalizes after 8th trick.
     }
 
     IEnumerator PlayOneTrick()
@@ -77,7 +86,7 @@ public class TurnFlowController : MonoBehaviour
         if (trick.cards == null) trick.cards = new List<PlayedCard>(4);
         trick.cards.Clear();
 
-        // Order from leader
+        // Order starting from leader
         var leader = trick.leader;
         var order = new SeatId[]
         {
@@ -93,138 +102,98 @@ public class TurnFlowController : MonoBehaviour
             var seat = seatRegistry?.Get(seatId);
             if (seat == null || seat.Hand == null)
             {
-                Debug.LogError($"[TurnFlow] Seat or Hand is null for seat {seatId}. Check SeatRegistry assignments.");
+                Debug.LogError($"[TurnFlow] Seat or Hand is null for {seatId}.");
                 yield break;
             }
 
             var handViews = seat.Hand.GetCards();
-            if (handViews == null)
-            {
-                Debug.LogError($"[TurnFlow] GetCards() returned null for seat {seatId}.");
-                yield break;
-            }
+            var handDefs  = ExtractHandDefs(handViews);
 
-            var handDefs = ExtractHandDefs(handViews);
-            if (handDefs.Count == 0)
-            {
-                Debug.LogWarning($"[TurnFlow] No cards in hand for seat {seatId}.");
-            }
+            // legal moves
+            List<CardDefinitionSO> legal =
+                (rulesProfile?.LegalMovePolicy == null)
+                    ? new List<CardDefinitionSO>(handDefs)
+                    : rulesProfile.LegalMovePolicy.GetLegalMoves(_ctx, handDefs, seatId);
 
-            // Legal moves
-            List<CardDefinitionSO> legal;
-            if (rulesProfile == null || rulesProfile.LegalMovePolicy == null)
-            {
-                Debug.LogWarning("[TurnFlow] RulesProfile or LegalMovePolicy is null. Falling back to all cards legal.");
-                legal = new List<CardDefinitionSO>(handDefs);
-            }
-            else
-            {
-                legal = rulesProfile.LegalMovePolicy.GetLegalMoves(_ctx, handDefs, seatId);
-            }
-
-            // Chooser
+            // chooser (human/AI)
             var chooser = chooserRegistry ? chooserRegistry.GetChooser(seatId) : null;
+            CardDefinitionSO chosen = null;
+
             if (chooser == null)
             {
-                Debug.LogWarning($"[TurnFlow] No chooser for seat {seatId}. Picking first legal automatically.");
-                var fallback = (legal.Count > 0) ? legal[0] : null;
-                if (fallback == null)
-                {
-                    Debug.LogError($"[TurnFlow] No legal card to play for seat {seatId}.");
-                    yield break;
-                }
-                yield return StartCoroutine(PlayChosenCard(i, seat, seatId, fallback));
+                chosen = (legal.Count > 0) ? legal[0] : null;
+                if (chosen == null) { Debug.LogError($"[TurnFlow] No legal card for {seatId}."); yield break; }
             }
             else
             {
-                CardDefinitionSO chosen = null;
                 System.Action<CardDefinitionSO> onPick = c => { chosen = c; };
-
                 chooser.OnCardChosen += onPick;
                 chooser.BeginChoose(_ctx, legal, seatId);
-
-                // wait until chosen
                 while (chosen == null) yield return null;
-
                 chooser.OnCardChosen -= onPick;
-                yield return StartCoroutine(PlayChosenCard(i, seat, seatId, chosen));
             }
+
+            yield return StartCoroutine(PlayChosenCard(i, seat, seatId, chosen));
 
             _ctx.CurrentSeat = SeatRegistry.Next(seatId);
             yield return new WaitForSeconds(config ? config.afterPlayDelay : 0.2f);
         }
 
-        // Resolve trick
-        if (rulesProfile == null || rulesProfile.TrickResolver == null)
-        {
-            Debug.LogError("[TurnFlow] RulesProfile or TrickResolver is null.");
-            yield break;
-        }
-
+        // resolve trick
         var (winner, pts) = rulesProfile.TrickResolver.ResolveTrick(_ctx);
         Debug.Log($"[TurnFlow] Trick winner = {winner}, pts = {pts}");
 
-        // Move played cards to winner’s pile, then notify RoundController
+        // move visuals then score
         if (trickPiles != null)
-        {
             yield return StartCoroutine(trickPiles.CollectTrick(winner));
-        }
-        else
-        {
-            Debug.LogError("[TurnFlow] trickPiles is NULL. Assign TrickPileController in TurnFlowController.");
-        }
 
-        if (roundController != null)
-        {
-            roundController.OnTrickResolved(winner, pts);
-        }
-        else
-        {
-            Debug.LogWarning("[TurnFlow] roundController is NULL. Scoring won’t update.");
-        }
+        roundController?.OnTrickResolved(winner, pts);
 
-        // Next trick (winner leads)
+        // next trick (winner leads)
         _ctx.CurrentTrick = new Trick { leader = winner, leadSuit = Suit.None, cards = new List<PlayedCard>(4) };
         _ctx.CurrentSeat = winner;
 
-        // Keep only local seat interactable
+        // Only local seat interactable again
         foreach (var s in seatRegistry.All())
             s.Hand?.SetInteractable(s.IsLocal);
     }
 
     IEnumerator PlayChosenCard(int indexInTrick, SeatContext seat, SeatId seatId, CardDefinitionSO chosen)
     {
-        if (chosen == null)
-        {
-            Debug.LogError($"[TurnFlow] Chosen card is null for seat {seatId}.");
-            yield break;
-        }
-
         if (indexInTrick == 0)
             _ctx.CurrentTrick.leadSuit = SuitUtils.Parse(chosen.Suit);
 
         var view = FindView(seat.Hand.GetCards(), chosen);
-        if (view == null)
-        {
-            Debug.LogError($"[TurnFlow] Could not find CardView for {chosen.DisplayName} @ {seatId}.");
-            yield break;
-        }
+        if (view == null) { Debug.LogError($"[TurnFlow] Missing CardView for {chosen.ShortName} @ {seatId}."); yield break; }
 
-        Debug.Log($"[TurnFlow] {seatId} plays {chosen.ShortName} → TrickArea");
         yield return StartCoroutine(seat.Hand.PlayCardToTrick(view));
-
         _ctx.CurrentTrick.cards.Add(new PlayedCard { seat = seatId, card = chosen });
     }
 
-    // --- helpers ---
+    // === Trump API ===
+    public void ResetTrump()
+    {
+        if (_ctx == null) return;
+        _ctx.ResetTrump();
+        OnTrumpChanged?.Invoke(_ctx.Trump);
+    }
+
+    public void SetTrump(Suit trump)
+    {
+        if (_ctx == null) return;
+        _ctx.SetTrump(trump);
+        Debug.Log($"[TurnFlow] Trump set to {trump}");
+        OnTrumpChanged?.Invoke(trump);
+    }
+
+    // helpers
     List<CardDefinitionSO> ExtractHandDefs(IReadOnlyList<CardView> views)
     {
         var list = new List<CardDefinitionSO>(views.Count);
         for (int i = 0; i < views.Count; i++)
         {
             var v = views[i];
-            if (v == null) continue;
-            var def = v.GetCardDefinition();
+            var def = v ? v.GetCardDefinition() : null;
             if (def != null) list.Add(def);
         }
         return list;
@@ -232,24 +201,19 @@ public class TurnFlowController : MonoBehaviour
 
     CardView FindView(IReadOnlyList<CardView> views, CardDefinitionSO def)
     {
-        // 1) reference equality
         for (int i = 0; i < views.Count; i++)
         {
             var v = views[i];
             if (v && v.GetCardDefinition() == def) return v;
         }
-        // 2) short name
         for (int i = 0; i < views.Count; i++)
         {
-            var v = views[i];
-            var d = v ? v.GetCardDefinition() : null;
+            var v = views[i]; var d = v ? v.GetCardDefinition() : null;
             if (d != null && def != null && d.ShortName == def.ShortName) return v;
         }
-        // 3) suit + rank
         for (int i = 0; i < views.Count; i++)
         {
-            var v = views[i];
-            var d = v ? v.GetCardDefinition() : null;
+            var v = views[i]; var d = v ? v.GetCardDefinition() : null;
             if (d != null && def != null && d.Suit == def.Suit && d.Rank == def.Rank) return v;
         }
         return null;
@@ -262,9 +226,8 @@ public class TurnFlowController : MonoBehaviour
         if (rulesProfile.TrumpPolicy == null) { Debug.LogError($"[TurnFlow] TrumpPolicy null at {where}."); return false; }
         if (rulesProfile.OrderingPolicy == null) { Debug.LogError($"[TurnFlow] OrderingPolicy null at {where}."); return false; }
         if (rulesProfile.ScoringPolicy == null) { Debug.LogError($"[TurnFlow] ScoringPolicy null at {where}."); return false; }
-        if (rulesProfile.LegalMovePolicy == null) { Debug.LogWarning($"[TurnFlow] LegalMovePolicy null at {where} (falling back to all cards legal)."); }
         if (rulesProfile.TrickResolver == null) { Debug.LogError($"[TurnFlow] TrickResolver null at {where}."); return false; }
-        if (chooserRegistry == null) { Debug.LogWarning($"[TurnFlow] chooserRegistry is null at {where} (AI/Human choice fallback will be used)."); }
+        if (chooserRegistry == null) { Debug.LogWarning($"[TurnFlow] chooserRegistry is null at {where} (fallback will be used)."); }
         return true;
     }
 }
