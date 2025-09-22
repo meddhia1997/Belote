@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 18646971669eb304ca294c70e6c9fb0c, type: 3}
-  m_Name: RulesProfile
+  m_Name: ClassicRulesProfile
   m_EditorClassIdentifier: Assembly-CSharp::RulesProfileSO
   trumpPolicy: {fileID: 11400000, guid: 99d12c18283d51942ae5f04d387b2d9a, type: 2}
   orderingPolicy: {fileID: 11400000, guid: 83545f63900b92d41b9eb5a8257b2aac, type: 2}

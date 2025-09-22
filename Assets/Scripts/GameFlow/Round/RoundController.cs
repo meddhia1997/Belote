@@ -5,8 +5,13 @@ public class RoundController : MonoBehaviour, IRoundController
 {
     [Header("Policies & Services")]
     public TeamMapSO teamMap;
-    public ClassicScorePolicySO scorePolicy;
     public MatchRulesSO matchRules;
+
+    [Header("Rules Source")]
+    [Tooltip("If left empty, this will auto-use TurnFlowController.rulesProfile at runtime.")]
+    public RulesProfileSO rulesProfileOverride;
+    [Tooltip("Optional. If left empty, will auto-FindObjectOfType in Awake().")]
+    public TurnFlowController turnFlow;
 
     [Header("Views")]
     [Tooltip("Drag the ScoreboardView_Text component here (NOT the GameObject). If left empty, will auto-find in children.")]
@@ -19,11 +24,28 @@ public class RoundController : MonoBehaviour, IRoundController
 
     public event Action<RoundScore> OnRoundFinished;
 
+    // Resolve the active scoring policy from the assigned RulesProfile
+    private IScoringPolicy ScoringPolicy
+    {
+        get
+        {
+            var profile = rulesProfileOverride != null
+                ? rulesProfileOverride
+                : (turnFlow != null ? turnFlow.rulesProfile : null);
+
+            return profile != null ? profile.ScoringPolicy : null;
+        }
+    }
+
     void Awake()
     {
         scorer = new RoundScorer();
 
-        // Auto-find if not assigned
+        // Find TurnFlow if not assigned (so we can read its RulesProfile)
+        if (turnFlow == null)
+            turnFlow = FindObjectOfType<TurnFlowController>(true);
+
+        // Auto-find scoreboard view if not set
         if (scoreboardView == null)
             scoreboardView = GetComponentInChildren<ScoreboardView_Text>(true);
 
@@ -34,6 +56,12 @@ public class RoundController : MonoBehaviour, IRoundController
         {
             Debug.LogError("[RoundController] ScoreboardView not set or does not implement IScoreboardView. " +
                            "Fix: drag the ScoreboardView_Text component (the script) onto RoundController.scoreboardView.");
+        }
+
+        if (ScoringPolicy == null)
+        {
+            Debug.LogError("[RoundController] No ScoringPolicy resolved. " +
+                           "Assign RulesProfileSO in RoundController.rulesProfileOverride or on TurnFlowController.rulesProfile.");
         }
     }
 
@@ -55,10 +83,13 @@ public class RoundController : MonoBehaviour, IRoundController
             scorer.SetLastTrickWinner(team);
             var rs = scorer.GetRoundScore();
 
-            if (rs.lastTrickWinner.HasValue)
+            // Apply last-trick bonus using the active scoring policy (from RulesProfile)
+            var scoring = ScoringPolicy;
+            if (scoring != null && rs.lastTrickWinner.HasValue)
             {
-                if (rs.lastTrickWinner.Value == TeamId.Us) rs.us += scorePolicy.LastTrickBonus();
-                else rs.them += scorePolicy.LastTrickBonus();
+                int bonus = scoring.LastTrickBonus;
+                if (rs.lastTrickWinner.Value == TeamId.Us) rs.us += bonus;
+                else rs.them += bonus;
             }
 
             scoreboard?.SetRound(rs.us, rs.them);

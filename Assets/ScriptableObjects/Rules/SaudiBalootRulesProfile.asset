@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 18646971669eb304ca294c70e6c9fb0c, type: 3}
+  m_Name: SaudiBalootRulesProfile
+  m_EditorClassIdentifier: Assembly-CSharp::RulesProfileSO
+  trumpPolicy: {fileID: 11400000, guid: bf21f1762fa77ed4cae55ac7d038f28e, type: 2}
+  orderingPolicy: {fileID: 11400000, guid: ae1fb06053396ff4da97e3ec82918294, type: 2}
+  scoringPolicy: {fileID: 11400000, guid: 4651e8cb258217a4c8e0923d1150f703, type: 2}
+  legalMovePolicy: {fileID: 11400000, guid: 72eafd0f26f644d47bc6891812c2f144, type: 2}
+  trickResolver: {fileID: 11400000, guid: 09f0b8a8a69bb344384d7cbe94e4ee6c, type: 2}
