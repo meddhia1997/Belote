@@ -787,6 +787,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9d99dff6a6a9a2479ac9f855d49e213, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AnalyticsSink_Console
+  verbose: 1
+  snapshotEachEvent: 1
+  turnFlow: {fileID: 1528609247}
+  rulesProfileOverride: {fileID: 11400000, guid: 8a24c50a35c928245ad2082a7a7176e4, type: 2}
 --- !u!1 &377896312
 GameObject:
   m_ObjectHideFlags: 0
@@ -1399,7 +1403,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 133.24005, y: -84.5}
+  m_AnchoredPosition: {x: 133.24023, y: -84.5}
   m_SizeDelta: {x: 266.5, y: 169}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &438203612
